@@ -5,6 +5,7 @@ from configs import Config
 from data import DataGenerator
 from kernelGAN import KernelGAN
 from learner import Learner
+import torch
 
 
 def train(conf):
@@ -52,3 +53,29 @@ def create_params(filename, args):
 
 if __name__ == '__main__':
     main()
+
+
+def my_create_conf(input_image_path, output_dir_path, num_iters=3000):
+    params = ['--input_image_path', input_image_path,
+              '--output_dir_path', output_dir_path,
+              '--noise_scale', str(1),
+              '--max_iters', str(num_iters)]
+    conf = Config().parse(params)
+    return conf
+
+
+def my_main(input_image_indices=[30], num_iters=3000):
+    print("My main...")
+    dataset_dir = '/home/labs/waic/itaian/Project/DIV2KRK'
+    base_dir = '/home/labs/waic/itaian/Project/KernelNN'
+    output_dir_path = os.path.abspath(os.path.join(base_dir, 'results'))
+
+    for image_num in input_image_indices:
+        # get original image
+        input_image_path = os.path.join(dataset_dir, 'lr_x2', 'im_{i}.png'.format(i=image_num))
+        # create config
+        conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path, num_iters=num_iters)
+        # train the model
+        train(conf)
+    # clear cuda cache
+    torch.cuda.empty_cache()
