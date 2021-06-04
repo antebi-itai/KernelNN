@@ -60,16 +60,17 @@ if __name__ == '__main__':
     main()
 
 
-def my_create_conf(input_image_path, output_dir_path, num_iters=3000):
+def my_create_conf(input_image_path, output_dir_path, num_iters=3000, new_loss=False):
     params = ['--input_image_path', input_image_path,
               '--output_dir_path', output_dir_path,
               '--noise_scale', str(1),
               '--max_iters', str(num_iters)]
+    if new_loss: params.append('--new_loss')
     conf = Config().parse(params)
     return conf
 
 
-def my_main(input_image_indices=[30], num_iters=3000):
+def my_main(input_image_indices=[30], num_iters=3000, old_loss=True, new_loss=False):
     print("My main...")
     dataset_dir = '/home/labs/waic/itaian/Project/DIV2KRK'
     base_dir = '/home/labs/waic/itaian/Project/KernelNN'
@@ -82,11 +83,17 @@ def my_main(input_image_indices=[30], num_iters=3000):
         kernelGT = sio.loadmat(os.path.join(dataset_dir, 'gt_k_x2', 'kernel_{i}.mat'.format(i=image_num)))['Kernel']
         # plot header
         plot_header_results(image_num, input_image, kernelGT)
-        # create config
-        conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path, num_iters=num_iters)
-        # train the model
-        final_kernel, real_kernel, loss_tracker, learner_special_iterations = train(conf)
-        # plot results
-        plot_train_results(final_kernel, real_kernel, loss_tracker, learner_special_iterations)
+
+        new_losses = []
+        if old_loss: new_losses.append(False)
+        if new_loss: new_losses.append(True)
+        for new_loss in new_losses:
+            # create config
+            conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path,
+                                  num_iters=num_iters, new_loss=new_loss)
+            # train the model
+            final_kernel, real_kernel, loss_tracker, learner_special_iterations = train(conf)
+            # plot results
+            plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, learner_special_iterations, new_loss)
     # clear cuda cache
     torch.cuda.empty_cache()

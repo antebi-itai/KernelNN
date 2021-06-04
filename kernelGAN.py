@@ -2,7 +2,7 @@ import torch
 import loss
 import networks
 import torch.nn.functional as F
-from util import save_final_kernel, run_zssr, post_process_k, move2cpu
+from util import save_final_kernel, run_zssr, post_process_k, move2cpu, read_image, im2tensor
 from loss import LossTracker
 
 class KernelGAN:
@@ -33,7 +33,11 @@ class KernelGAN:
         self.curr_k = torch.FloatTensor(conf.G_kernel_size, conf.G_kernel_size).cuda()
 
         # Losses
-        self.GAN_loss_layer = loss.GANLoss(d_last_layer_size=self.d_output_shape).cuda()
+        if self.conf.new_loss:
+            self.input_image = im2tensor(read_image(self.conf.input_image_path) / 255.)
+            self.NN_loss_layer = loss.NNLoss(original_image=self.input_image, patch_size=5).cuda()
+        else:
+            self.GAN_loss_layer = loss.GANLoss(d_last_layer_size=self.d_output_shape).cuda()
         self.bicubic_loss = loss.DownScaleLoss(scale_factor=conf.scale_factor).cuda()
         self.sum2one_loss = loss.SumOfWeightsLoss().cuda()
         self.boundaries_loss = loss.BoundariesLoss(k_size=conf.G_kernel_size).cuda()
@@ -42,7 +46,10 @@ class KernelGAN:
         self.loss_bicubic = 0
 
         # Define loss function
-        self.criterionGAN = self.GAN_loss_layer.forward
+        if self.conf.new_loss:
+            self.criterionNN = self.NN_loss_layer.forward
+        else:
+            self.criterionGAN = self.GAN_loss_layer.forward
 
         # Initialize networks weights
         self.G.apply(networks.weights_init_G)
@@ -68,7 +75,8 @@ class KernelGAN:
     def train(self, g_input, d_input):
         self.set_input(g_input, d_input)
         self.train_g()
-        self.train_d()
+        if not self.conf.new_loss:
+            self.train_d()
 
     def set_input(self, g_input, d_input):
         self.g_input = g_input.contiguous()
@@ -81,8 +89,11 @@ class KernelGAN:
         g_pred = self.G.forward(self.g_input)
         # Pass Generators output through Discriminator
         d_pred_fake = self.D.forward(g_pred)
-        # Calculate generator loss, based on discriminator prediction on generator result
-        loss_g = self.criterionGAN(d_last_layer=d_pred_fake, is_d_input_real=True)
+        # Calculate generator loss, based on discriminator prediction on generator result or patch nearest neighbours
+        if self.conf.new_loss:
+            loss_g = self.criterionNN(crop=g_pred)
+        else:
+            loss_g = self.criterionGAN(d_last_layer=d_pred_fake, is_d_input_real=True)
         # Sum all losses
         reg = self.calc_constraints(g_pred)
         total_loss_g = loss_g + reg

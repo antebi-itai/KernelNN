@@ -233,6 +233,15 @@ def run_zssr(k_2, conf):
         print('Completed! runtime=%d:%d\n' % (runtime // 60, runtime % 60) + '~' * 30)
 
 
+def LR(input_image, kernel):
+    input_image = im2tensor(input_image)
+    kernel = torch.FloatTensor(kernel).view([1, 1] + list(kernel.shape)).cuda()
+    lr_image = torch.nn.functional.conv2d(input=input_image.permute([1, 0, 2, 3]), weight=kernel).permute(
+        [1, 0, 2, 3])
+    lr_image_subsampled = tensor2im(lr_image[:,:,::2,::2])
+    return lr_image_subsampled
+
+
 def plot_header_results(image_num, input_image, kernelGT):
     fig = plt.figure(figsize=(15, 3))
     fig.suptitle('Image #{i}'.format(i=image_num), y=1, fontsize=16)
@@ -246,12 +255,17 @@ def plot_header_results(image_num, input_image, kernelGT):
     im = fig.add_subplot(grid[0, 2])
     im.imshow(input_image)
     im.title.set_text('original image')
+    # lr image
+    lr_image_subsampled = LR(input_image, kernelGT)
+    lr_im = fig.add_subplot(grid[0, 3])
+    lr_im.imshow(lr_image_subsampled)
+    lr_im.title.set_text('downscaled image')
 
 
-def plot_train_results(final_kernel, real_kernel, loss_tracker, learner_special_iterations):
-    loss_mode = "GAN"
-    fig = plt.figure(figsize=(15, 3))
-    grid = plt.GridSpec(1, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
+def plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, learner_special_iterations, new_loss):
+    loss_mode = "NN" if new_loss else "GAN"
+    fig = plt.figure(figsize=(15, 6))
+    grid = plt.GridSpec(2, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
     # output kernel
     curr_fig = fig.add_subplot(grid[0, 0])
     curr_fig.imshow(final_kernel, cmap='gray')
@@ -276,3 +290,8 @@ def plot_train_results(final_kernel, real_kernel, loss_tracker, learner_special_
     curr_fig.axis('off')
     plt.text(0, 0, "Similar to bicubic at iter: {0}\nConstraints Inserted at iter: {1}".format(learner_special_iterations[0], learner_special_iterations[1]),
              fontsize=18)
+    # lr image
+    lr_image_subsampled = LR(input_image, real_kernel)
+    lr_im = fig.add_subplot(grid[1, 3])
+    lr_im.imshow(lr_image_subsampled)
+    lr_im.title.set_text('downscaled image')

@@ -45,6 +45,10 @@ class Config:
         self.parser.add_argument('--noise_scale', type=float, default=1., help='ZSSR uses this to partially de-noise images')
         self.parser.add_argument('--real_image', action='store_true', help='ZSSRs configuration is for real images')
 
+        # Loss type
+        self.parser.add_argument('--new_loss', action='store_true',
+                                 help='Old loss trains vs discriminator while New loss trains with NN')
+
     def parse(self, args=None):
         """Parse the configuration"""
         self.conf = self.parser.parse_args(args=args)

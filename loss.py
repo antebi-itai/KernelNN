@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 from util import shave_a2b, resize_tensor_w_kernel, create_penalty_mask, map2tensor
 
@@ -11,6 +12,7 @@ class GANLoss(nn.Module):
 
     def __init__(self, d_last_layer_size):
         super(GANLoss, self).__init__()
+        print("Using GAN loss!")
         # The loss function is applied after the pixel-wise comparison to the true label (0/1)
         self.loss = nn.L1Loss(reduction='mean')
         # Make a shape
@@ -99,6 +101,37 @@ class SparsityLoss(nn.Module):
 
     def forward(self, kernel):
         return self.loss(torch.abs(kernel) ** self.power, torch.zeros_like(kernel))
+
+
+def calc_dist_l2(X, Y):
+    """
+    Calculate distances between patches
+    :param X: tensor of n patches of size k
+    :param Y: tensor of m patches of size k
+    :return: l2 distance matrix - tensor of shape n * m
+    """
+    Y = Y.transpose(0, 1)
+    X2 = X.pow(2).sum(1, keepdim=True)
+    Y2 = Y.pow(2).sum(0, keepdim=True)
+    XY = X @ Y
+    return X2 - (2 * XY) + Y2
+
+
+class NNLoss(nn.Module):
+    """ Distance to NN in original image """
+
+    def __init__(self, original_image, patch_size=5):
+        super(NNLoss, self).__init__()
+        print("Using NN loss!")
+        self.patch_size = patch_size
+        self.original_patches = F.unfold(original_image, kernel_size=self.patch_size).squeeze().t()
+        self.loss = calc_dist_l2
+
+    def forward(self, crop):
+        crop_patches = F.unfold(crop, kernel_size=self.patch_size).squeeze().t()
+        dists = self.loss(crop_patches, self.original_patches)
+        loss = dists.min(dim=1).values.mean()
+        return loss
 
 
 class LossTracker:
