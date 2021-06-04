@@ -5,7 +5,10 @@ from configs import Config
 from data import DataGenerator
 from kernelGAN import KernelGAN
 from learner import Learner
+from util import plot_train_results, plot_header_results, read_image
+
 import torch
+import scipy.io as sio
 
 
 def train(conf):
@@ -16,7 +19,9 @@ def train(conf):
         [g_in, d_in] = data.__getitem__(iteration)
         gan.train(g_in, d_in)
         learner.update(iteration, gan)
-    gan.finish()
+    final_kernel, real_kernel, loss_tracker = gan.finish()
+    learner_special_iterations = learner.similar_to_bicubic_iteration, learner.constraints_inserted_iteration
+    return final_kernel, real_kernel, loss_tracker, learner_special_iterations
 
 
 def main():
@@ -73,9 +78,15 @@ def my_main(input_image_indices=[30], num_iters=3000):
     for image_num in input_image_indices:
         # get original image
         input_image_path = os.path.join(dataset_dir, 'lr_x2', 'im_{i}.png'.format(i=image_num))
+        input_image = read_image(input_image_path) / 255.
+        kernelGT = sio.loadmat(os.path.join(dataset_dir, 'gt_k_x2', 'kernel_{i}.mat'.format(i=image_num)))['Kernel']
+        # plot header
+        plot_header_results(image_num, input_image, kernelGT)
         # create config
         conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path, num_iters=num_iters)
         # train the model
-        train(conf)
+        final_kernel, real_kernel, loss_tracker, learner_special_iterations = train(conf)
+        # plot results
+        plot_train_results(final_kernel, real_kernel, loss_tracker, learner_special_iterations)
     # clear cuda cache
     torch.cuda.empty_cache()

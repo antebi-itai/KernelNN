@@ -99,3 +99,14 @@ class SparsityLoss(nn.Module):
 
     def forward(self, kernel):
         return self.loss(torch.abs(kernel) ** self.power, torch.zeros_like(kernel))
+
+
+class LossTracker:
+    def __init__(self):
+        self.losses = []
+        self.regs_percentage = []
+
+    def update(self, loss, reg):
+        loss, reg = loss.item(), reg.item()
+        self.losses.append(loss)
+        self.regs_percentage.append(100 * (reg / loss))

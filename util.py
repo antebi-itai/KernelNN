@@ -10,6 +10,7 @@ from torch.nn import functional as F
 from scipy.ndimage import measurements, interpolation
 
 from ZSSRforKernelGAN.ZSSR import ZSSR
+import math
 
 
 def move2cpu(d):
@@ -230,3 +231,48 @@ def run_zssr(k_2, conf):
         plt.imsave(os.path.join(conf.output_dir_path, 'ZSSR_%s.png' % conf.img_name), sr, vmin=0, vmax=max_val, dpi=1)
         runtime = int(time.time() - start_time)
         print('Completed! runtime=%d:%d\n' % (runtime // 60, runtime % 60) + '~' * 30)
+
+
+def plot_header_results(image_num, input_image, kernelGT):
+    fig = plt.figure(figsize=(15, 3))
+    fig.suptitle('Image #{i}'.format(i=image_num), y=1, fontsize=16)
+    grid = plt.GridSpec(1, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
+    # kernel GT
+    gt_fig = fig.add_subplot(grid[0, 0])
+    gt_fig.imshow(kernelGT, cmap='gray')
+    gt_fig.title.set_text('kernel GT')
+    plt.xticks(np.arange(0, 5 * (math.floor(max(kernelGT.shape) / 5) + 1), 5))
+    # original image
+    im = fig.add_subplot(grid[0, 2])
+    im.imshow(input_image)
+    im.title.set_text('original image')
+
+
+def plot_train_results(final_kernel, real_kernel, loss_tracker, learner_special_iterations):
+    loss_mode = "GAN"
+    fig = plt.figure(figsize=(15, 3))
+    grid = plt.GridSpec(1, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
+    # output kernel
+    curr_fig = fig.add_subplot(grid[0, 0])
+    curr_fig.imshow(final_kernel, cmap='gray')
+    curr_fig.axis('scaled')
+    curr_fig.title.set_text("kernel " + loss_mode)
+    plt.xticks(np.arange(0, 5 * (math.floor(max(final_kernel.shape) / 5) + 1), 5))
+    # real network kernel
+    curr_fig = fig.add_subplot(grid[0, 1])
+    curr_fig.imshow(real_kernel, cmap='gray')
+    curr_fig.axis('scaled')
+    curr_fig.title.set_text('real kernel ' + loss_mode)
+    plt.xticks(np.arange(0, 5 * (math.floor(max(real_kernel.shape) / 5) + 1), 5))
+    # loss and reg percentage
+    curr_fig = fig.add_subplot(grid[0, 2])
+    curr_fig.plot(loss_tracker.losses)
+    curr_fig.title.set_text('Train loss')
+    curr_fig = fig.add_subplot(grid[0, 3])
+    curr_fig.plot(loss_tracker.regs_percentage, 'r')
+    curr_fig.title.set_text('Regularization percentage')
+    # reg stages
+    curr_fig = fig.add_subplot(grid[0, 4])
+    curr_fig.axis('off')
+    plt.text(0, 0, "Similar to bicubic at iter: {0}\nConstraints Inserted at iter: {1}".format(learner_special_iterations[0], learner_special_iterations[1]),
+             fontsize=18)

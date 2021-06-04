@@ -2,8 +2,8 @@ import torch
 import loss
 import networks
 import torch.nn.functional as F
-from util import save_final_kernel, run_zssr, post_process_k
-
+from util import save_final_kernel, run_zssr, post_process_k, move2cpu
+from loss import LossTracker
 
 class KernelGAN:
     # Constraint co-efficients
@@ -52,6 +52,9 @@ class KernelGAN:
         self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=conf.g_lr, betas=(conf.beta1, 0.999))
         self.optimizer_D = torch.optim.Adam(self.D.parameters(), lr=conf.d_lr, betas=(conf.beta1, 0.999))
 
+        # Keep track on loss
+        self.g_loss_tracker = LossTracker()
+
         print('*' * 60 + '\nSTARTED KernelGAN on: \"%s\"...' % conf.input_image_path)
 
     # noinspection PyUnboundLocalVariable
@@ -81,7 +84,11 @@ class KernelGAN:
         # Calculate generator loss, based on discriminator prediction on generator result
         loss_g = self.criterionGAN(d_last_layer=d_pred_fake, is_d_input_real=True)
         # Sum all losses
-        total_loss_g = loss_g + self.calc_constraints(g_pred)
+        reg = self.calc_constraints(g_pred)
+        total_loss_g = loss_g + reg
+        # Visualize the loss
+        with torch.no_grad():
+            self.g_loss_tracker.update(move2cpu(total_loss_g), move2cpu(reg))
         # Calculate gradients
         total_loss_g.backward()
         # Update weights
@@ -125,3 +132,4 @@ class KernelGAN:
         print('KernelGAN estimation complete!')
         run_zssr(final_kernel, self.conf)
         print('FINISHED RUN (see --%s-- folder)\n' % self.conf.output_dir_path + '*' * 60 + '\n\n')
+        return final_kernel, move2cpu(self.curr_k), self.g_loss_tracker

@@ -13,6 +13,8 @@ class Learner:
         self.bic_loss_counter = 0
         self.similar_to_bicubic = False  # Flag indicating when the bicubic similarity is achieved
         self.insert_constraints = True  # Flag is switched to false once constraints are added to the loss
+        self.similar_to_bicubic_iteration = -1
+        self.constraints_inserted_iteration = -1
 
     def update(self, iteration, gan):
         if iteration == 0:
@@ -29,6 +31,7 @@ class Learner:
             if gan.loss_bicubic < self.bic_loss_to_start_change:
                 if self.bic_loss_counter >= 2:
                     self.similar_to_bicubic = True
+                    self.similar_to_bicubic_iteration = iteration
                 else:
                     self.bic_loss_counter += 1
             else:
@@ -40,3 +43,4 @@ class Learner:
                 gan.lambda_centralized = self.lambda_centralized_end
                 gan.lambda_sparse = self.lambda_sparse_end
                 self.insert_constraints = False
+                self.constraints_inserted_iteration = iteration
