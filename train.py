@@ -19,9 +19,9 @@ def train(conf):
         [g_in, d_in] = data.__getitem__(iteration)
         gan.train(g_in, d_in)
         learner.update(iteration, gan)
-    final_kernel, real_kernel, loss_tracker = gan.finish()
+    final_kernel, real_kernel, loss_tracker, nn_tracker = gan.finish()
     learner_special_iterations = learner.similar_to_bicubic_iteration, learner.constraints_inserted_iteration
-    return final_kernel, real_kernel, loss_tracker, learner_special_iterations
+    return final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations
 
 
 def main():
@@ -92,8 +92,8 @@ def my_main(input_image_indices=[30], num_iters=3000, old_loss=True, new_loss=Fa
             conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path,
                                   num_iters=num_iters, new_loss=new_loss)
             # train the model
-            final_kernel, real_kernel, loss_tracker, learner_special_iterations = train(conf)
+            final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations = train(conf)
             # plot results
-            plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, learner_special_iterations, new_loss)
+            plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations, new_loss)
     # clear cuda cache
     torch.cuda.empty_cache()

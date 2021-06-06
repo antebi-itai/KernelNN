@@ -3,7 +3,7 @@ import loss
 import networks
 import torch.nn.functional as F
 from util import save_final_kernel, run_zssr, post_process_k, move2cpu, read_image, im2tensor
-from loss import LossTracker
+from loss import LossTracker, NNTracker
 
 class KernelGAN:
     # Constraint co-efficients
@@ -28,6 +28,8 @@ class KernelGAN:
         # Input tensors
         self.g_input = torch.FloatTensor(1, 3, conf.input_crop_size, conf.input_crop_size).cuda()
         self.d_input = torch.FloatTensor(1, 3, self.d_input_shape, self.d_input_shape).cuda()
+        self.g_input_location = (None, None)
+        self.d_input_location = (None, None)
 
         # The kernel G is imitating
         self.curr_k = torch.FloatTensor(conf.G_kernel_size, conf.G_kernel_size).cuda()
@@ -59,8 +61,16 @@ class KernelGAN:
         self.optimizer_G = torch.optim.Adam(self.G.parameters(), lr=conf.g_lr, betas=(conf.beta1, 0.999))
         self.optimizer_D = torch.optim.Adam(self.D.parameters(), lr=conf.d_lr, betas=(conf.beta1, 0.999))
 
-        # Keep track on loss
+        # Keep track on loss and statistics
         self.g_loss_tracker = LossTracker()
+        if self.conf.new_loss:
+            self.nn_tracker = NNTracker(self.input_image.shape[2:],
+                                        crop_size=self.conf.input_crop_size,
+                                        kernel_size=(torch.tensor(self.conf.G_structure) - 1).sum() + 1,
+                                        scale=int(1 / conf.scale_factor),
+                                        patch_size=self.conf.patch_size)
+        else:
+            self.nn_tracker = None
 
         print('*' * 60 + '\nSTARTED KernelGAN on: \"%s\"...' % conf.input_image_path)
 
@@ -79,8 +89,10 @@ class KernelGAN:
             self.train_d()
 
     def set_input(self, g_input, d_input):
-        self.g_input = g_input.contiguous()
-        self.d_input = d_input.contiguous()
+        self.g_input = g_input.crop.contiguous()
+        self.d_input = d_input.crop.contiguous()
+        self.g_input_location = (g_input.top, g_input.left)
+        self.d_input_location = (d_input.top, d_input.left)
 
     def train_g(self):
         # Zeroize gradients
@@ -91,15 +103,17 @@ class KernelGAN:
         d_pred_fake = self.D.forward(g_pred)
         # Calculate generator loss, based on discriminator prediction on generator result or patch nearest neighbours
         if self.conf.new_loss:
-            loss_g = self.criterionNN(crop=g_pred)
+            loss_g, patchNN_indices = self.criterionNN(crop=g_pred)
         else:
             loss_g = self.criterionGAN(d_last_layer=d_pred_fake, is_d_input_real=True)
         # Sum all losses
         reg = self.calc_constraints(g_pred)
         total_loss_g = loss_g + reg
-        # Visualize the loss
+        # Visualize the loss and statistics
         with torch.no_grad():
             self.g_loss_tracker.update(move2cpu(total_loss_g), move2cpu(reg))
+            if self.conf.new_loss:
+                self.nn_tracker.update(patchNN_indices.detach().cpu(), top=self.g_input_location[0], left=self.g_input_location[1])
         # Calculate gradients
         total_loss_g.backward()
         # Update weights
@@ -143,4 +157,4 @@ class KernelGAN:
         print('KernelGAN estimation complete!')
         run_zssr(final_kernel, self.conf)
         print('FINISHED RUN (see --%s-- folder)\n' % self.conf.output_dir_path + '*' * 60 + '\n\n')
-        return final_kernel, move2cpu(self.curr_k), self.g_loss_tracker
+        return final_kernel, move2cpu(self.curr_k), self.g_loss_tracker, self.nn_tracker

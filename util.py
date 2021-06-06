@@ -262,10 +262,12 @@ def plot_header_results(image_num, input_image, kernelGT):
     lr_im.title.set_text('downscaled image')
 
 
-def plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, learner_special_iterations, new_loss):
+def plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations, new_loss):
     loss_mode = "NN" if new_loss else "GAN"
-    fig = plt.figure(figsize=(15, 6))
-    grid = plt.GridSpec(2, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
+    fig_height = 9 if new_loss else 6
+    grid_height = 3 if new_loss else 2
+    fig = plt.figure(figsize=(15, fig_height))
+    grid = plt.GridSpec(grid_height, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
     # output kernel
     curr_fig = fig.add_subplot(grid[0, 0])
     curr_fig.imshow(final_kernel, cmap='gray')
@@ -290,8 +292,17 @@ def plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, lea
     curr_fig.axis('off')
     plt.text(0, 0, "Similar to bicubic at iter: {0}\nConstraints Inserted at iter: {1}".format(learner_special_iterations[0], learner_special_iterations[1]),
              fontsize=18)
+    # patch statistics
+    if new_loss:
+        curr_fig = fig.add_subplot(grid[1, 2])
+        curr_fig.plot(nn_tracker.num_indices_in_prev)
+        curr_fig.title.set_text('num of patches with known NN')
+        curr_fig = fig.add_subplot(grid[1, 3])
+        curr_fig.plot(nn_tracker.num_indices_changed, 'r')
+        curr_fig.title.set_text('num of patches who switched NN')
     # lr image
+    lr_height_index = 2 if new_loss else 1
     lr_image_subsampled = LR(input_image, real_kernel)
-    lr_im = fig.add_subplot(grid[1, 3])
+    lr_im = fig.add_subplot(grid[lr_height_index, 3])
     lr_im.imshow(lr_image_subsampled)
     lr_im.title.set_text('downscaled image')

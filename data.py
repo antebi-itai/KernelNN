@@ -4,6 +4,13 @@ from imresize import imresize
 from util import read_image, create_gradient_map, im2tensor, create_probability_map, nn_interpolation
 
 
+class DataCrop:
+    def __init__(self, crop, top, left):
+        self.crop = crop
+        self.top = top
+        self.left = left
+
+
 class DataGenerator(Dataset):
     """
     The data generator loads an image once, calculates it's gradient map on initialization and then outputs a cropped version
@@ -42,7 +49,8 @@ class DataGenerator(Dataset):
         crop_im = self.input_image[top:top + size, left:left + size, :]
         if not for_g:  # Add noise to the image for d
             crop_im += np.random.randn(*crop_im.shape) / 255.0
-        return im2tensor(crop_im)
+        crop = DataCrop(im2tensor(crop_im), top, left)
+        return crop
 
     def make_list_of_crop_indices(self, conf):
         iterations = conf.max_iters

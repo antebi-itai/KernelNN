@@ -48,6 +48,7 @@ class Config:
         # Loss type
         self.parser.add_argument('--new_loss', action='store_true',
                                  help='Old loss trains vs discriminator while New loss trains with NN')
+        self.parser.add_argument('--patch_size', type=float, default=5, help='Size of patches used in NN loss')
 
     def parse(self, args=None):
         """Parse the configuration"""

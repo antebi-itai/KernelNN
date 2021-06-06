@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 from util import shave_a2b, resize_tensor_w_kernel, create_penalty_mask, map2tensor
+import math
 
 
 # noinspection PyUnresolvedReferences
@@ -129,9 +130,65 @@ class NNLoss(nn.Module):
 
     def forward(self, crop):
         crop_patches = F.unfold(crop, kernel_size=self.patch_size).squeeze().t()
-        dists = self.loss(crop_patches, self.original_patches)
-        loss = dists.min(dim=1).values.mean()
-        return loss
+        dists_mat = self.loss(crop_patches, self.original_patches)
+        patchNN_dists, patchNN_indices = dists_mat.min(dim=1)
+        loss = patchNN_dists.mean()
+        return loss, patchNN_indices
+
+
+class NNTracker:
+    def __init__(self, images_shape, crop_size=64, kernel_size=13, scale=2, patch_size=5):
+        self.crop_size = crop_size
+        self.kernel_size = kernel_size
+        self.scale = scale
+        self.patch_size = patch_size
+        self.lr_crop_size = (self.crop_size - self.kernel_size) // self.scale + 1
+        self.patches_size = (self.lr_crop_size - patch_size) + 1
+
+        self.prev_indices = torch.zeros(images_shape) * float('nan')
+        self.curr_indices = torch.zeros(images_shape) * float('nan')
+
+        self.num_indices_in_prev = []
+        self.num_indices_changed = []
+
+    def update(self, patchNN_indices, top, left):
+        # reshape the indices
+        patchNN_indices = patchNN_indices.reshape([1, 1, self.patches_size, self.patches_size])
+
+        # shift to distinguish zeros added from true zero indices
+        patchNN_indices = patchNN_indices.float()
+        patchNN_indices += 0.1
+
+        # dilate the indices by self.scale
+        transposed_conv_weight = F.pad(
+            torch.ones(1, 1, 1, 1, dtype=patchNN_indices.dtype, device=patchNN_indices.device),
+            (self.scale-1, self.scale-1, self.scale-1, self.scale-1))
+        patchNN_indices = F.conv_transpose2d(patchNN_indices, transposed_conv_weight, stride=self.scale, padding=self.scale-1).squeeze()
+        # pad the dilated indices to align with the original crop
+        pad_before = math.floor(self.kernel_size / 2) + self.scale * (self.patch_size // 2)
+        pad_after = math.ceil(self.kernel_size / 2) + self.scale * (self.patch_size // 2)
+        patchNN_indices = F.pad(patchNN_indices, (pad_before, pad_after, pad_before, pad_after))
+
+        patchNN_indices[patchNN_indices == 0] = float('nan') # all zeros added (dilation / padding) should be nan
+        patchNN_indices = patchNN_indices.floor() # restore original indices from shifted indices
+
+        # update the prev and curr indices accordingly
+        not_nan_indices = torch.logical_not(patchNN_indices.isnan())
+        del self.prev_indices
+        self.prev_indices = self.curr_indices.clone()
+        self.curr_indices[top:top+self.crop_size, left:left+self.crop_size][not_nan_indices] = patchNN_indices[not_nan_indices]
+
+        self.num_indices_in_prev.append(self.get_num_indices_in_prev())
+        self.num_indices_changed.append(self.get_num_indices_changed())
+
+    def get_num_indices_in_prev(self):
+        return (torch.logical_not(self.prev_indices.isnan())).count_nonzero()
+
+    def get_num_indices_changed(self):
+        # both not nan and are different
+        different_indices = self.prev_indices != self.curr_indices
+        not_nan_indices = (torch.logical_not(self.prev_indices.isnan()) & torch.logical_not(self.curr_indices.isnan()))
+        return (different_indices & not_nan_indices).count_nonzero()
 
 
 class LossTracker:
