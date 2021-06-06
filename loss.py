@@ -60,7 +60,7 @@ class SumOfWeightsLoss(nn.Module):
         self.loss = nn.L1Loss()
 
     def forward(self, kernel):
-        return self.loss(torch.ones(1).to(kernel.device), torch.sum(kernel))
+        return self.loss(torch.ones(1).to(kernel.device), torch.sum(kernel).unsqueeze(0))
 
 
 class CentralizedLoss(nn.Module):
@@ -76,8 +76,8 @@ class CentralizedLoss(nn.Module):
     def forward(self, kernel):
         """Return the loss over the distance of center of mass from kernel center """
         r_sum, c_sum = torch.sum(kernel, dim=1).reshape(1, -1), torch.sum(kernel, dim=0).reshape(1, -1)
-        return self.loss(torch.stack((torch.matmul(r_sum, self.indices) / torch.sum(kernel),
-                                      torch.matmul(c_sum, self.indices) / torch.sum(kernel))), self.center)
+        return self.loss(torch.cat((torch.matmul(r_sum, self.indices) / torch.sum(kernel),
+                                    torch.matmul(c_sum, self.indices) / torch.sum(kernel))), self.center)
 
 
 class BoundariesLoss(nn.Module):
@@ -85,8 +85,8 @@ class BoundariesLoss(nn.Module):
 
     def __init__(self, k_size):
         super(BoundariesLoss, self).__init__()
-        self.mask = map2tensor(create_penalty_mask(k_size, 30))
-        self.zero_label = Variable(torch.zeros(k_size).cuda(), requires_grad=False)
+        self.mask = map2tensor(create_penalty_mask(k_size, 30)).squeeze()
+        self.zero_label = Variable(torch.zeros(k_size, k_size).cuda(), requires_grad=False)
         self.loss = nn.L1Loss()
 
     def forward(self, kernel):
