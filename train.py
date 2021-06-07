@@ -5,7 +5,7 @@ from configs import Config
 from data import DataGenerator
 from kernelGAN import KernelGAN
 from learner import Learner
-from util import plot_train_results, plot_header_results, read_image
+from util import plot_train_results, plot_header_results, read_image, move2cpu, create_next_results_dir, post_process_k, save_kernels
 
 import torch
 import scipy.io as sio
@@ -19,6 +19,11 @@ def train(conf):
         [g_in, d_in] = data.__getitem__(iteration)
         gan.train(g_in, d_in)
         learner.update(iteration, gan)
+        if conf.save_results and iteration % conf.save_results_interval == 0:
+            gan.calc_curr_k()
+            real_kernel = move2cpu(gan.curr_k)
+            final_kernel = post_process_k(gan.curr_k, n=gan.conf.n_filtering)
+            save_kernels(real_kernel, final_kernel, conf, iteration)
     final_kernel, real_kernel, loss_tracker, nn_tracker = gan.finish()
     learner_special_iterations = learner.similar_to_bicubic_iteration, learner.constraints_inserted_iteration
     return final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations
@@ -60,40 +65,42 @@ if __name__ == '__main__':
     main()
 
 
-def my_create_conf(input_image_path, output_dir_path, num_iters=3000, new_loss=False):
+def my_create_conf(input_image_path, output_dir_path, num_iters=3000, new_loss=False, save_results=False):
     params = ['--input_image_path', input_image_path,
               '--output_dir_path', output_dir_path,
               '--noise_scale', str(1),
               '--max_iters', str(num_iters)]
     if new_loss: params.append('--new_loss')
+    if save_results: params.append('--save_results')
     conf = Config().parse(params)
     return conf
 
 
-def my_main(input_image_indices=[30], num_iters=3000, old_loss=True, new_loss=False):
+def my_main(input_image_indices=[30], input_kernel_indices=[0], num_iters=3000, old_loss=True, new_loss=False, save_results=False):
     print("My main...")
-    dataset_dir = '/home/labs/waic/itaian/Project/DIV2KRK'
-    base_dir = '/home/labs/waic/itaian/Project/KernelNN'
-    output_dir_path = os.path.abspath(os.path.join(base_dir, 'results'))
+    dataset_dir = '/home/labs/waic/itaian/Project/KernelNN_Dataset'
+    results_dir = '/home/labs/waic/itaian/Project/KernelNN/results'
+    output_dir_path = '' if not save_results else create_next_results_dir(results_dir)
 
     for image_num in input_image_indices:
-        # get original image
-        input_image_path = os.path.join(dataset_dir, 'lr_x2', 'im_{i}.png'.format(i=image_num))
-        input_image = read_image(input_image_path) / 255.
-        kernelGT = sio.loadmat(os.path.join(dataset_dir, 'gt_k_x2', 'kernel_{i}.mat'.format(i=image_num)))['Kernel']
-        # plot header
-        plot_header_results(image_num, input_image, kernelGT)
+        for kernel_num in input_kernel_indices:
+            # get original image
+            input_image_path = os.path.join(dataset_dir, 'lr_x2', 'im_{im}_ker_{ker}.png'.format(im=image_num, ker=kernel_num))
+            input_image = read_image(input_image_path) / 255.
+            kernelGT = sio.loadmat(os.path.join(dataset_dir, 'kernels', 'ker_{ker}.mat'.format(ker=kernel_num)))['ker']
+            # plot header
+            plot_header_results(image_num, kernel_num, input_image, kernelGT)
 
-        new_losses = []
-        if old_loss: new_losses.append(False)
-        if new_loss: new_losses.append(True)
-        for new_loss in new_losses:
-            # create config
-            conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path,
-                                  num_iters=num_iters, new_loss=new_loss)
-            # train the model
-            final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations = train(conf)
-            # plot results
-            plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations, new_loss)
+            new_losses = []
+            if old_loss: new_losses.append(False)
+            if new_loss: new_losses.append(True)
+            for new_loss in new_losses:
+                # create config
+                conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path,
+                                      num_iters=num_iters, new_loss=new_loss, save_results=save_results)
+                # train the model
+                final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations = train(conf)
+                # plot results
+                plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations, new_loss)
     # clear cuda cache
     torch.cuda.empty_cache()

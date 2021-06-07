@@ -218,6 +218,11 @@ def save_final_kernel(k_2, conf):
         sio.savemat(os.path.join(conf.output_dir_path, '%s_kernel_x4.mat' % conf.img_name), {'Kernel': k_4})
 
 
+def save_kernels(real_kernel, final_kernel, conf, iter):
+    sio.savemat(os.path.join(conf.output_dir_path, 'real_kernel_iter_%d.mat' % iter), {'Kernel': real_kernel})
+    sio.savemat(os.path.join(conf.output_dir_path, 'final_kernel_iter_%d.mat' % iter), {'Kernel': final_kernel})
+
+
 def run_zssr(k_2, conf):
     """Performs ZSSR with estimated kernel for wanted scale factor"""
     if conf.do_ZSSR:
@@ -242,9 +247,9 @@ def LR(input_image, kernel):
     return lr_image_subsampled
 
 
-def plot_header_results(image_num, input_image, kernelGT):
+def plot_header_results(image_num, kernel_num, input_image, kernelGT):
     fig = plt.figure(figsize=(15, 3))
-    fig.suptitle('Image #{i}'.format(i=image_num), y=1, fontsize=16)
+    fig.suptitle('Image #{im} Kernel #{ker}'.format(im=image_num, ker=kernel_num), y=1, fontsize=16)
     grid = plt.GridSpec(1, 5, hspace=0.5, wspace=0.5, width_ratios=[2, 2, 5, 5, 5])
     # kernel GT
     gt_fig = fig.add_subplot(grid[0, 0])
@@ -306,3 +311,14 @@ def plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, nn_
     lr_im = fig.add_subplot(grid[lr_height_index, 3])
     lr_im.imshow(lr_image_subsampled)
     lr_im.title.set_text('downscaled image')
+
+
+def create_next_results_dir(results_dir):
+    assert (os.path.exists(results_dir))
+    i = 0
+    path = os.path.join(results_dir, str(i))
+    while os.path.exists(path):
+        i += 1
+        path = os.path.join(results_dir, str(i))
+    os.mkdir(path)
+    return path

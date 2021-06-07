@@ -48,6 +48,9 @@ class Config:
         # Loss type
         self.parser.add_argument('--new_loss', action='store_true',
                                  help='Old loss trains vs discriminator while New loss trains with NN')
+        self.parser.add_argument('--save_results', action='store_true',
+                                 help='saves all intermediate kernels to files')
+        self.parser.add_argument('--save_results_interval', type=int, default=10, help='save intermediate results every interval epochs')
         self.parser.add_argument('--patch_size', type=float, default=5, help='Size of patches used in NN loss')
 
     def parse(self, args=None):
@@ -62,8 +65,7 @@ class Config:
 
     def clean_file_name(self):
         """Retrieves the clean image file_name for saving purposes"""
-        self.conf.img_name = self.conf.input_image_path.split('/')[-1].replace('ZSSR', '') \
-            .replace('real', '').replace('__', '').split('_.')[0].split('.')[0]
+        self.conf.img_name = self.conf.input_image_path.split('/')[-1].split('.')[0]
 
     def set_gpu_device(self):
         """Sets the GPU device if one is given"""
@@ -75,8 +77,6 @@ class Config:
 
     def set_output_directory(self):
         """Define the output directory name and create the folder"""
-        self.conf.output_dir_path = os.path.join(self.conf.output_dir_path, self.conf.img_name)
-        # In case the folder exists - stack 'l's to the folder name
-        while os.path.isdir(self.conf.output_dir_path):
-            self.conf.output_dir_path += 'l'
-        os.makedirs(self.conf.output_dir_path)
+        self.conf.output_dir_path = os.path.join(self.conf.output_dir_path, "%s_loss_%s" % (self.conf.img_name, "NN" if self.conf.new_loss else "GAN"))
+        assert not os.path.isdir(self.conf.output_dir_path)
+        os.mkdir(self.conf.output_dir_path)
