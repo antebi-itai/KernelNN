@@ -148,8 +148,9 @@ class NNTracker:
         self.prev_indices = torch.zeros(images_shape) * float('nan')
         self.curr_indices = torch.zeros(images_shape) * float('nan')
 
-        self.num_indices_in_prev = []
+        self.num_indices = []
         self.num_indices_changed = []
+        self.percentage_indices_changed = []
 
     def update(self, patchNN_indices, top, left):
         # reshape the indices
@@ -176,13 +177,17 @@ class NNTracker:
         not_nan_indices = torch.logical_not(patchNN_indices.isnan())
         del self.prev_indices
         self.prev_indices = self.curr_indices.clone()
+        intersection = (torch.logical_not(self.curr_indices[top:top+self.crop_size, left:left+self.crop_size].isnan()) &
+                        torch.logical_not(patchNN_indices.isnan())).count_nonzero()
         self.curr_indices[top:top+self.crop_size, left:left+self.crop_size][not_nan_indices] = patchNN_indices[not_nan_indices]
 
-        self.num_indices_in_prev.append(self.get_num_indices_in_prev())
-        self.num_indices_changed.append(self.get_num_indices_changed())
+        self.num_indices.append(self.get_num_indices())
+        num_indices_changed = self.get_num_indices_changed()
+        self.num_indices_changed.append(num_indices_changed)
+        self.percentage_indices_changed.append(100 * (num_indices_changed / intersection).item() if intersection != 0 else 0)
 
-    def get_num_indices_in_prev(self):
-        return (torch.logical_not(self.prev_indices.isnan())).count_nonzero()
+    def get_num_indices(self):
+        return (torch.logical_not(self.curr_indices.isnan())).count_nonzero()
 
     def get_num_indices_changed(self):
         # both not nan and are different
@@ -195,8 +200,19 @@ class LossTracker:
     def __init__(self):
         self.losses = []
         self.regs_percentage = []
+        self.bicubic_regs_percentage = []
+        self.sum2one_regs_percentage = []
+        self.boundries_regs_percentage = []
+        self.centralized_regs_percentage = []
+        self.sparse_regs_percentage = []
 
-    def update(self, loss, reg):
-        loss, reg = loss.item(), reg.item()
+    def update(self, loss, reg, bicubic_reg, sum2one_reg, boundries_reg, centralized_reg, sparse_reg):
+        loss, reg, bicubic_reg, sum2one_reg, boundries_reg, centralized_reg, sparse_reg = \
+            loss.item(), reg.item(), bicubic_reg.item(), sum2one_reg.item(), boundries_reg.item(), centralized_reg.item(), sparse_reg.item()
         self.losses.append(loss)
         self.regs_percentage.append(100 * (reg / loss))
+        self.bicubic_regs_percentage.append(100 * (bicubic_reg / loss))
+        self.sum2one_regs_percentage.append(100 * (sum2one_reg / loss))
+        self.boundries_regs_percentage.append(100 * (boundries_reg / loss))
+        self.centralized_regs_percentage.append(100 * (centralized_reg / loss))
+        self.sparse_regs_percentage.append(100 * (sparse_reg / loss))

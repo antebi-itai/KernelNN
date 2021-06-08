@@ -107,11 +107,15 @@ class KernelGAN:
         else:
             loss_g = self.criterionGAN(d_last_layer=d_pred_fake, is_d_input_real=True)
         # Sum all losses
-        reg = self.calc_constraints(g_pred)
+        bicubic_reg, sum2one_reg, boundries_reg, centralized_reg, sparse_reg = self.calc_constraints(g_pred)
+        reg = bicubic_reg + sum2one_reg + boundries_reg + centralized_reg + sparse_reg
         total_loss_g = loss_g + reg
         # Visualize the loss and statistics
         with torch.no_grad():
-            self.g_loss_tracker.update(move2cpu(total_loss_g), move2cpu(reg))
+            self.g_loss_tracker.update(loss=move2cpu(total_loss_g), reg=move2cpu(reg),
+                                       bicubic_reg=move2cpu(bicubic_reg), sum2one_reg=move2cpu(sum2one_reg),
+                                       boundries_reg=move2cpu(boundries_reg), centralized_reg=move2cpu(centralized_reg),
+                                       sparse_reg=move2cpu(sparse_reg))
             if self.conf.new_loss:
                 self.nn_tracker.update(patchNN_indices.detach().cpu(), top=self.g_input_location[0], left=self.g_input_location[1])
         # Calculate gradients
@@ -129,8 +133,8 @@ class KernelGAN:
         loss_centralized = self.centralized_loss.forward(kernel=self.curr_k)
         loss_sparse = self.sparse_loss.forward(kernel=self.curr_k)
         # Apply constraints co-efficients
-        return self.loss_bicubic * self.lambda_bicubic + loss_sum2one * self.lambda_sum2one + \
-               loss_boundaries * self.lambda_boundaries + loss_centralized * self.lambda_centralized + \
+        return self.loss_bicubic * self.lambda_bicubic, loss_sum2one * self.lambda_sum2one, \
+               loss_boundaries * self.lambda_boundaries, loss_centralized * self.lambda_centralized, \
                loss_sparse * self.lambda_sparse
 
     def train_d(self):

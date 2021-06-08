@@ -300,7 +300,7 @@ def plot_train_results(input_image, final_kernel, real_kernel, loss_tracker, nn_
     # patch statistics
     if new_loss:
         curr_fig = fig.add_subplot(grid[1, 2])
-        curr_fig.plot(nn_tracker.num_indices_in_prev)
+        curr_fig.plot(nn_tracker.num_indices)
         curr_fig.title.set_text('num of patches with known NN')
         curr_fig = fig.add_subplot(grid[1, 3])
         curr_fig.plot(nn_tracker.num_indices_changed, 'r')

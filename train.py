@@ -6,6 +6,7 @@ from data import DataGenerator
 from kernelGAN import KernelGAN
 from learner import Learner
 from util import plot_train_results, plot_header_results, read_image, move2cpu, create_next_results_dir, post_process_k, save_kernels
+import pickle
 
 import torch
 import scipy.io as sio
@@ -24,6 +25,10 @@ def train(conf):
             real_kernel = move2cpu(gan.curr_k)
             final_kernel = post_process_k(gan.curr_k, n=gan.conf.n_filtering)
             save_kernels(real_kernel, final_kernel, conf, iteration)
+    if conf.save_results:
+        pickle.dump(gan.g_loss_tracker, open(os.path.join(conf.output_dir_path, 'loss_tracker.pkl'), "wb"))
+        pickle.dump(gan.nn_tracker, open(os.path.join(conf.output_dir_path, 'nn_tracker.pkl'), "wb"))
+        pickle.dump(learner, open(os.path.join(conf.output_dir_path, 'learner.pkl'), "wb"))
     final_kernel, real_kernel, loss_tracker, nn_tracker = gan.finish()
     learner_special_iterations = learner.similar_to_bicubic_iteration, learner.constraints_inserted_iteration
     return final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations
