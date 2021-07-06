@@ -14,6 +14,9 @@ import scipy.io as sio
 
 def train(conf):
     gan = KernelGAN(conf)
+    if conf.load_weights_path != '':
+        print('loading weights...')
+        gan.G.load_state_dict(torch.load(conf.load_weights_path))
     learner = Learner()
     data = DataGenerator(conf, gan)
     for iteration in tqdm.tqdm(range(conf.max_iters), ncols=60):
@@ -70,9 +73,10 @@ if __name__ == '__main__':
     main()
 
 
-def my_create_conf(input_image_path, output_dir_path, num_iters=3000, new_loss=False, save_results=False):
+def my_create_conf(input_image_path, output_dir_path, num_iters=3000, new_loss=False, save_results=False, load_weights_path=''):
     params = ['--input_image_path', input_image_path,
               '--output_dir_path', output_dir_path,
+              '--load_weights_path', load_weights_path,
               '--noise_scale', str(1),
               '--max_iters', str(num_iters)]
     if new_loss: params.append('--new_loss')
@@ -81,7 +85,7 @@ def my_create_conf(input_image_path, output_dir_path, num_iters=3000, new_loss=F
     return conf
 
 
-def my_main(input_image_indices=[30], input_kernel_indices=[0], num_iters=3000, old_loss=True, new_loss=False, save_results=False):
+def my_main(input_image_indices=[30], input_kernel_indices=[0], num_iters=3000, old_loss=True, new_loss=False, save_results=False, load_weights_path=''):
     print("My main...")
     dataset_dir = '/home/labs/waic/itaian/Project/KernelNN_Dataset'
     results_dir = '/home/labs/waic/itaian/Project/KernelNN/results'
@@ -102,7 +106,7 @@ def my_main(input_image_indices=[30], input_kernel_indices=[0], num_iters=3000, 
             for new_loss in new_losses:
                 # create config
                 conf = my_create_conf(input_image_path=input_image_path, output_dir_path=output_dir_path,
-                                      num_iters=num_iters, new_loss=new_loss, save_results=save_results)
+                                      num_iters=num_iters, new_loss=new_loss, save_results=save_results, load_weights_path=load_weights_path)
                 # train the model
                 final_kernel, real_kernel, loss_tracker, nn_tracker, learner_special_iterations = train(conf)
                 # plot results
